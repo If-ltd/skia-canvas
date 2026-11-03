@@ -25,10 +25,15 @@ impl Canvas{
   }
 
   pub fn engine(&mut self) -> gfx::RenderingEngine{
-    self.engine.get_or_insert_with(|| match self.gpu_disabled{
+    let engine = self.engine.get_or_insert_with(|| match self.gpu_disabled{
       true => gfx::RenderingEngine::CPU,
       false => gfx::RenderingEngine::default(),
-    }).clone()
+    });
+    #[cfg(all(windows, feature = "windows-offscreen"))]
+    if !engine.selectable() {
+      *engine = gfx::RenderingEngine::CPU;
+    }
+    *engine
   }
 
   pub fn export_options(&self) -> ExportOptions{

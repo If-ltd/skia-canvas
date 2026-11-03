@@ -6,6 +6,8 @@ compile_error!("the `window` feature is enabled automatically by `metal` or `vul
 mod metal;
 #[cfg(feature = "vulkan")]
 mod vulkan;
+#[cfg(all(windows, feature = "windows-offscreen"))]
+mod windows_offscreen;
 pub mod page;
 
 // budgeted storage for readback surfaces, export snapshots, and referenced-page rasters

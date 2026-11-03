@@ -132,18 +132,22 @@ for (let i=0; i<9999; i++) {
 
 ### `.gpu`
 
-The `.gpu` attribute allows you to control whether rendering occurs on the graphics card or uses the CPU. Rendering is hardware accelerated by default, using [Metal](https://developer.apple.com/metal/) on macOS and [Vulkan](https://www.vulkan.org) on Linux and Windows. To use software-based rendering, set the `.gpu` property to `false`. If the current platform doesn’t support GPU-based rendering, the property will be `false` by default (see [this article](https://linuxconfig.org/install-and-test-vulkan-on-linux) for some tips on getting Vulkan working on Linux).
+The `.gpu` attribute allows you to control whether rendering occurs on the graphics card or uses the CPU. Rendering is hardware accelerated by default, using [Metal](https://developer.apple.com/metal/) on macOS and [Vulkan](https://www.vulkan.org) on Linux. On Windows, bitmap export and pixel readback try D3D12, then Vulkan, then CPU. To use software-based rendering, set the `.gpu` property to `false`. If the current platform doesn’t support GPU-based rendering, the property will be `false` by default (see [this article](https://linuxconfig.org/install-and-test-vulkan-on-linux) for some tips on getting Vulkan working on Linux).
+
+On Windows, set `SKIA_CANVAS_BACKEND` before starting Node.js to choose the process-wide offscreen preference. The default `auto` tries D3D12 and Vulkan in order. The values `d3d12`, `vulkan`, and `opengl` try only the named GPU backend before falling back to CPU. Use `cpu` to skip GPU initialization. OpenGL requires a WGL driver and access to a Windows desktop session for its hidden context-binding window. On-screen windows use Vulkan.
+
+If the active GPU reports device loss, the renderer drops its cached GPU surfaces and replays the interrupted bitmap operation on the next backend. The CPU renderer remains available through `new Canvas(width, height, {gpu: false})` regardless of the process-wide preference.
 
 ### `.engine`
 
 The `.engine` property is a read-only object that provides you with a status report on how this Canvas’s images will be rendered. It contains the following fields:
   - `renderer`: describes whether the `CPU` or `GPU` is currently being used to generate output images. If GPU initialization failed, the renderer will report being the `CPU`, even if you set the Canvas’s [`.gpu`][canvas_gpu] property to `true`
-  - `api`: either `Metal` or `Vulkan` depending on your platform
+  - `api`: `Metal`, `Vulkan`, `D3D12`, or `OpenGL` depending on the platform and settings. On Windows, CPU rendering reports `null`
   - `device`: the identity of the ‘video card’ that was found during start-up
   - `driver`: the name of the OS’s device driver *‹vulkan-only›*
   - `msaa`: an array with the samples-per-pixel values supported by the GPU for [multisample antialiasing][msaa]
   - `threads`: the number of threads in the worker pool that will be used for asynchronous [`toFile`][toFile], [`toBuffer`][toBuffer], & [`toURL`][toURL] exports. By default this is the same as the number of CPU cores found, but can be overridden by setting the [`SKIA_CANVAS_THREADS`][multithreading] environment variable.
-  - `error`: if GPU initialization failed, this property will contain a description of what went wrong. Otherwise it will be undefined.
+  - `error`: describes GPU initialization failures or detected device loss. On Windows this can be present even when a later GPU backend is active.
   - `textContrast`: a number in the range 0.0–1.0 controlling the amount of additional weight to add (defaults to 0.0)
   - `textGamma`: a number in the range 0.0–4.0 controlling how glyph edges are blended with the background (defaults to 1.4)
 
