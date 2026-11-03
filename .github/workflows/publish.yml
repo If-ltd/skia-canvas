@@ -6,6 +6,7 @@ on:
 
 jobs:
   publish:
+    if: github.event_name != 'release' || !contains(github.event.release.tag_name, '-moda.')
     name: Publish to NPM
     runs-on: ubuntu-latest
     permissions:

@@ -1,0 +1,32 @@
+name: Publish Moda Windows native binary
+on:
+  push:
+    tags: ['v*-moda.*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - run: git config --system core.longpaths true
+      - name: Build and verify the native module
+        run: |
+          make optimized
+          node tests/windows-offscreen.cjs
+      - name: Create the Windows binary archive and manifest
+        run: node scripts/package-moda-windows.mjs
+      - name: Publish the tagged internal assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" --verify-tag --prerelease --latest=false `
+            --title "$env:GITHUB_REF_NAME" --notes "Windows x64 Skia Canvas native binary from $env:GITHUB_SHA" `
+            skia-canvas-win32-x64.node.gz skia-canvas-win32-x64.json
