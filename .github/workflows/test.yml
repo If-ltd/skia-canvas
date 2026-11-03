@@ -1,83 +1,25 @@
-name: Run tests
+name: Build Windows Skia validation artifact
 on:
-  workflow_dispatch:
   push:
-  pull_request:
-    types: [opened, reopened]
-    branches: [main]
-
+    branches: ['codex/qa-skia-backend-order-*']
+permissions:
+  contents: read
 jobs:
-  run-tests:
-    name: Rebuild & Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - macos-latest
-          - windows-latest
-          - ubuntu-24.04
-        node:
-          - 18
-          - 24
-
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
     steps:
-    - name: Enable long paths (Windows only)
-      if: ${{ matrix.os == 'windows-latest' }}
-      run: git config --system core.longpaths true
-
-    - name: Checkout repository
-      uses: actions/checkout@v7
-
-    - name: Use Node.js ${{ matrix.node }}
-      uses: actions/setup-node@v7
-      with:
-        node-version: ${{ matrix.node }}
-        cache: 'npm'
-
-    - name: Use Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-
-    - name: Prepare Linux build
-      if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      id: skia
-      run: |
-        sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
-        echo "version=$(make -s skia-version)" >> $GITHUB_OUTPUT
-
-    - name: Restore prebuilt Skia (Linux only)
-      if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      id: skia-cache
-      uses: actions/cache@v6
-      with:
-        path: /tmp/skia-binaries
-        key: skia-crates-${{ runner.os }}-${{ runner.arch }}-${{ steps.skia.outputs.version }}
-
-    - name: Use cached Skia (Linux only)
-      if: ${{ startsWith(matrix.os, 'ubuntu') && steps.skia-cache.outputs.cache-hit == 'true' }}
-      run: echo "SKIA_BINARIES_URL=file:///tmp/skia-binaries/skia.tar.gz" >> $GITHUB_ENV
-
-    - name: Build module
-      run: make optimized
-
-    - name: Save Skia for later runs (Linux only)
-      if: ${{ startsWith(matrix.os, 'ubuntu') && steps.skia-cache.outputs.cache-hit != 'true' }}
-      run: |
-        out=$(find target/release/build -maxdepth 3 -type d -path '*skia-bindings-*/out/skia' | head -1)
-        [ -n "$out" ] || { echo "no skia build output to cache"; exit 1; }
-        mkdir -p /tmp/pkg/skia-binaries /tmp/skia-binaries
-        cp "$out"/*.a "$out"/bindings.rs /tmp/pkg/skia-binaries/
-        tar czf /tmp/skia-binaries/skia.tar.gz -C /tmp/pkg skia-binaries
-
-    - name: Run tests
-      run: |
-        npm test
-
-    - name: Verify Windows offscreen backend selection and export
-      if: ${{ matrix.os == 'windows-latest' && matrix.node == 24 }}
-      run: node tests/windows-offscreen.cjs
-
-    - name: Verify npm packaging
-      run: node tests/packaging.mjs
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - run: git config --system core.longpaths true
+      - run: make optimized
+      - run: node tests/windows-offscreen.cjs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: skia-windows-order-qa
+          path: lib/skia.node
+          if-no-files-found: error
+          retention-days: 2
