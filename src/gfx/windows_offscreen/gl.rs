@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use skia_safe::gpu::{self, DirectContext, gl};
+use skia_safe::gpu::{self, DirectContext};
 use windows::{
     Win32::{
         Foundation::{HINSTANCE, HWND},
@@ -28,7 +28,7 @@ pub(super) struct Context {
 impl Context {
     pub(super) fn new() -> Result<Self, String> {
         let wgl = WglContext::new()?;
-        let interface = gl::interfaces::make_win().ok_or("could not load WGL interface")?;
+        let interface = gpu::interfaces::make_win().ok_or("could not load WGL interface")?;
         let direct = gpu::direct_contexts::make_gl(interface, None)
             .ok_or("could not create Skia context")?;
         let renderer = unsafe { glGetString(GL_RENDERER) };

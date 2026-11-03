@@ -2,7 +2,9 @@
 use skia_safe::{gpu::DirectContext, ImageInfo, Surface};
 #[cfg(feature = "window")]
 use skia_safe::Image; // RenderOutcome carries a snapshot destined for the Frame cache
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(not(any(feature = "vulkan", feature = "metal")))]
+use serde_json::Value;
 use crate::gfx::{self, page::ExportOptions, cache::Cache};
 
 #[cfg(feature = "metal")]

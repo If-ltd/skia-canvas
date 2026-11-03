@@ -248,7 +248,17 @@ impl WindowsEngine {
     }
 
     pub(super) fn status() -> Value {
-        render_thread::run(|_| Ok(STATE.with_borrow_mut(State::status))).unwrap_or_else(|error| {
+        if let Some(status) = cached_status() {
+            return status;
+        }
+        render_thread::run(|_| {
+            if let Some(status) = cached_status() {
+                return Ok(status);
+            }
+            STATE.with_borrow_mut(State::ensure_context);
+            cached_status().ok_or("Windows backend status unavailable".into())
+        })
+        .unwrap_or_else(|error| {
             let mut status = cpu_status();
             status["error"] = json!(error);
             status
