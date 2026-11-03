@@ -270,7 +270,7 @@ impl PageRecorder{
         // no residency test needed: a GPU readback always rasterizes on the render thread
         self.eviction.request();
         let dst_info = dst_info.clone();
-        let pixels = engine.render(move |cache|{
+        let pixels = engine.render(move |cache, engine|{
           cache.readback(page.id, read_frequently, |surface|{
             surface.update(&page, &opts, &engine, cache);
             let mut pixels = vec![0u8; dst_info.compute_min_byte_size()];
@@ -606,7 +606,7 @@ impl Page{
         let opts = options.clone();
 
         enum Rendered{ Encodable(SkImage), Raw(Vec<u8>) }
-        let rendered = engine.render(move |cache| {
+        let rendered = engine.render(move |cache, engine| {
           let color_space = page.color_space.clone(); // an export always renders in its page's space
           let img_info = ImageInfo::new_n32_premul(page.scaled_dimensions(opts.density), Some(color_space.clone()));
           let cached = may_snapshot(page.depth()); // shallow pages re-render cheaply; don't spend a slot

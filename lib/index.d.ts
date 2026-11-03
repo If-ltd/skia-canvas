@@ -360,8 +360,8 @@ export interface SaveOptions extends ExportOptions {
 export interface EngineDetails {
   /** Whether the active renderer is CPU- or GPU-backed */
   renderer: "CPU" | "GPU"
-  /** Backend API in use (null when compiled without GPU support) */
-  api: "Vulkan" | "Metal" | null
+  /** Backend API in use (null when there is no active backend on Windows or GPU support is not compiled in) */
+  api: "Vulkan" | "Metal" | "D3D12" | "OpenGL" | null
   /** Details about the graphics hardware that was initialized */
   device: string
   /** The device driver useed by the active graphics adapter */
@@ -370,7 +370,7 @@ export interface EngineDetails {
   msaa: number[]
   /** Size of the thread pool used for async rendering (set via the SKIA_CANVAS_THREADS env var; defaults to CPU core count) */
   threads: number
-  /** Error thrown when attempting to initialize the GPU */
+  /** Details of GPU initialization failure or detected device loss */
   error?: string | null
   /** Amount of additional contrast added when rendering text (see TextOptions) */
   textContrast: number

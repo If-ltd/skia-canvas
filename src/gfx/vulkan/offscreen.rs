@@ -1,4 +1,6 @@
-use std::{cell::RefCell, sync::{Arc, OnceLock}, time::{Instant, Duration}};
+use std::{sync::{Arc, OnceLock}, time::Instant};
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
+use std::{cell::RefCell, time::Duration};
 use serde_json::{json, Value};
 use vulkano::{
     device::{
@@ -16,12 +18,17 @@ use skia_safe::{
 use crate::gfx::{page::ExportOptions, engine::render_thread};
 use super::{VulkanShared, make_direct_context};
 
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
 thread_local!( static VK_CONTEXT: RefCell<Option<VulkanContext>> = const { RefCell::new(None) }; );
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
 static VK_STATUS: OnceLock<Value> = OnceLock::new();
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
 static VK_CONTEXT_LIFESPAN:Duration = Duration::from_secs(5); // rebuilds can take ~70ms on a 3060, so use a long lifespan
 
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
 pub struct VulkanEngine;
 
+#[cfg(not(all(windows, feature = "windows-offscreen")))]
 impl VulkanEngine {
     pub fn api() -> Option<String>{
         Some("Vulkan".to_string())
@@ -34,28 +41,7 @@ impl VulkanEngine {
     pub fn status() -> Value {
         VK_STATUS.get_or_init(||{
             render_thread::run(|_| VulkanContext::new().map(|context| {
-                // if a context can be created successfully, collect info about the GPU
-                let device_props = context.physical_device.properties();
-                let gpu_type = match device_props.device_type {
-                    PhysicalDeviceType::IntegratedGpu => Some("Integrated GPU"),
-                    PhysicalDeviceType::DiscreteGpu => Some("Discrete GPU"),
-                    PhysicalDeviceType::VirtualGpu => Some("Virtual GPU"),
-                    _ => Some("Other GPU")
-                };
-
-                let status = json!({
-                    "renderer": "GPU",
-                    "api": "Vulkan",
-                    "device": gpu_type.map(|t| format!("{} ({})",
-                        t, device_props.device_name)
-                    ),
-                    "driver":format!("{} ({})",
-                        device_props.driver_id.map(|id| format!("{:?}", id) ).unwrap_or("Unknown Driver".to_string()),
-                        device_props.driver_info.as_ref().unwrap_or(&"Unknown Version".to_string()),
-                    ),
-                    "msaa": context.msaa,
-                    "threads": rayon::current_num_threads(),
-                });
+                let status = context.status();
                 VK_CONTEXT.set(Some(context));
                 status
             }))
@@ -126,7 +112,7 @@ impl VulkanEngine {
 
 #[allow(dead_code)]
 pub struct VulkanContext{
-    context: DirectContext,
+    pub(in crate::gfx) context: DirectContext,
     library: Arc<VulkanLibrary>,
     instance: Arc<Instance>,
     physical_device: Arc<PhysicalDevice>,
@@ -137,7 +123,31 @@ pub struct VulkanContext{
 }
 
 impl VulkanContext{
-    fn new() -> Result<Self, String> {
+    pub(in crate::gfx) fn status(&self) -> Value {
+        let device_props = self.physical_device.properties();
+        let gpu_type = match device_props.device_type {
+            PhysicalDeviceType::IntegratedGpu => Some("Integrated GPU"),
+            PhysicalDeviceType::DiscreteGpu => Some("Discrete GPU"),
+            PhysicalDeviceType::VirtualGpu => Some("Virtual GPU"),
+            _ => Some("Other GPU")
+        };
+
+        json!({
+            "renderer": "GPU",
+            "api": "Vulkan",
+            "device": gpu_type.map(|t| format!("{} ({})",
+                t, device_props.device_name)
+            ),
+            "driver":format!("{} ({})",
+                device_props.driver_id.map(|id| format!("{:?}", id) ).unwrap_or("Unknown Driver".to_string()),
+                device_props.driver_info.as_ref().unwrap_or(&"Unknown Version".to_string()),
+            ),
+            "msaa": self.msaa,
+            "threads": rayon::current_num_threads(),
+        })
+    }
+
+    pub(in crate::gfx) fn new() -> Result<Self, String> {
         let shared = VulkanShared::get()?;
         let mut failure = "Vulkan: No suitable physical device found".to_string();
 
@@ -228,4 +238,10 @@ impl VulkanContext{
         )
     }
 
+}
+
+#[cfg(all(windows, feature = "windows-offscreen"))]
+pub(in crate::gfx) fn window_probe() -> Result<(), String> {
+    static PROBE: OnceLock<Result<(), String>> = OnceLock::new();
+    PROBE.get_or_init(|| render_thread::run(|_| VulkanContext::new().map(|_| ()))).clone()
 }

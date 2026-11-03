@@ -7,8 +7,10 @@ use crate::gfx::{self, page::ExportOptions, cache::Cache};
 
 #[cfg(feature = "metal")]
 use crate::gfx::metal::offscreen::MetalEngine as Engine;
-#[cfg(feature = "vulkan")]
+#[cfg(all(feature = "vulkan", not(all(windows, feature = "windows-offscreen"))))]
 use crate::gfx::vulkan::offscreen::VulkanEngine as Engine;
+#[cfg(all(windows, feature = "windows-offscreen"))]
+use crate::gfx::windows_offscreen::WindowsEngine as Engine;
 
 #[cfg(not(any(feature = "vulkan", feature = "metal")))]
 struct Engine { }
@@ -67,11 +69,14 @@ impl RenderingEngine{
     // into Err values that can be sent back to js as promise rejections. the correct Cache is
     // handed to the callback depending on whether the bitmaps are texture-backed
     pub fn render<T, F>(&self, f:F) -> Result<T, String>
-        where F: for<'a> FnOnce(Cache<'a>) -> Result<T, String> + Send + 'static, T:Send + 'static
+        where F: for<'a> Fn(Cache<'a>, Self) -> Result<T, String> + Send + 'static, T:Send + 'static
     {
         match self {
-            Self::GPU => render_thread::run(f),
-            Self::CPU => catch_panic(move || f(Cache::shared()))
+            #[cfg(all(windows, feature = "windows-offscreen"))]
+            Self::GPU => render_thread::run(move |cache| Engine::render(cache, f)),
+            #[cfg(not(all(windows, feature = "windows-offscreen")))]
+            Self::GPU => render_thread::run(move |cache| f(cache, Self::GPU)),
+            Self::CPU => catch_panic(move || f(Cache::shared(), Self::CPU))
         }
     }
 
@@ -83,10 +88,14 @@ impl RenderingEngine{
     }
 
     pub fn status(&self, is_manually_disabled:bool) -> serde_json::Value {
+        #[cfg(all(windows, feature = "windows-offscreen"))]
+        let disabled_api = || None::<String>;
+        #[cfg(not(all(windows, feature = "windows-offscreen")))]
+        let disabled_api = Engine::api;
         match is_manually_disabled{
             true => json!({
                 "renderer":"CPU",
-                "api": Engine::api(),
+                "api": disabled_api(),
                 "device": "CPU-based renderer (GPU manually disabled)",
                 "driver": "N/A",
                 "msaa": [0],
@@ -97,16 +106,16 @@ impl RenderingEngine{
     }
 
     pub fn lacks_gpu_support(&self) -> Option<String> {
-        match Engine::supported(){
-            true => None,
-            false => {
-                let mut msg = vec!["No windowing support".to_string()];
-                if let Some(Value::String(error)) = Engine::status().get("error"){
-                    msg.push(error.to_string());
-                }
-                Some(msg.join(": "))
-            }
-        }
+        #[cfg(all(windows, feature = "windows-offscreen"))]
+        let status = crate::gfx::vulkan::offscreen::window_probe();
+        #[cfg(not(all(windows, feature = "windows-offscreen")))]
+        let status = Engine::supported().then_some(()).ok_or_else(|| {
+            Engine::status()["error"].as_str().unwrap_or_default().to_string()
+        });
+        status.err().map(|error| {
+            if error.is_empty() { "No windowing support".to_string() }
+            else { format!("No windowing support: {error}") }
+        })
     }
 }
 

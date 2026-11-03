@@ -75,5 +75,9 @@ jobs:
       run: |
         npm test
 
+    - name: Verify Windows offscreen backend selection and export
+      if: ${{ matrix.os == 'windows-latest' && matrix.node == 24 }}
+      run: node tests/windows-offscreen.cjs
+
     - name: Verify npm packaging
       run: node tests/packaging.mjs
