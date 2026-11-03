@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 
 const expectedApis = {
-  auto: ['D3D12', 'Vulkan'],
+  auto: ['Vulkan', 'OpenGL'],
   d3d12: ['D3D12'],
   vulkan: ['Vulkan'],
   opengl: ['OpenGL'],
@@ -21,7 +21,7 @@ if (!process.argv[2]) {
     actualApis[mode] = api;
     console.log(`${mode}: ${api || renderer}${error ? ` (${error})` : ''}`);
   }
-  assert.equal(actualApis.auto, actualApis.d3d12 ?? actualApis.vulkan);
+  assert.equal(actualApis.auto, actualApis.vulkan ?? actualApis.opengl);
 } else {
   verifyExport(process.argv[2]).catch(error => {
     console.error(error);

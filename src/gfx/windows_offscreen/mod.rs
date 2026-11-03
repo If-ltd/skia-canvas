@@ -40,7 +40,7 @@ impl Backend {
 
     fn candidates(setting: &str) -> Result<&'static [Self], String> {
         match setting {
-            "auto" => Ok(&[Self::D3d12, Self::Vulkan]),
+            "auto" => Ok(&[Self::Vulkan, Self::OpenGl]),
             "d3d12" => Ok(&[Self::D3d12]),
             "vulkan" => Ok(&[Self::Vulkan]),
             "opengl" => Ok(&[Self::OpenGl]),
@@ -52,6 +52,11 @@ impl Backend {
     }
 
     fn open(self) -> Result<Context, String> {
+        if std::env::var("MODA_SKIA_QA_SKIP")
+            .is_ok_and(|list| list.split(',').any(|name| name == self.name()))
+        {
+            return Err("QA forced initialization failure".into());
+        }
         let mut context = match self {
             Self::D3d12 => d3d::Context::new().map(Context::D3d12),
             Self::Vulkan => VulkanContext::new().map(Context::Vulkan),
