@@ -40,7 +40,7 @@ impl Backend {
 
     fn candidates(setting: &str) -> Result<&'static [Self], String> {
         match setting {
-            "auto" => Ok(&[Self::D3d12, Self::Vulkan]),
+            "auto" => Ok(&[Self::Vulkan, Self::OpenGl]),
             "d3d12" => Ok(&[Self::D3d12]),
             "vulkan" => Ok(&[Self::Vulkan]),
             "opengl" => Ok(&[Self::OpenGl]),
